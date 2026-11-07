@@ -39,3 +39,12 @@ luac.out
 *.x86_64
 *.hex
 
+
+# Local generated artifacts and ignored legacy inputs
+/dist/
+/build/
+__pycache__/
+*.pyc
+/textures/
+/DataEditorX/
+/dataeditor/
