@@ -760,7 +760,7 @@ function Duel.BreakShield(e,sel_player,target_player,min,max,rc,reason,ignore_br
 				table.insert(option_list,Auxiliary.break_select_list[te])
 			end
 			Duel.Hint(HINT_SELECTMSG,sel_player,DM_HINTMSG_APPLYABILITY)
-			local opt=Duel.SelectOption(sel_player,table.unpack(option_list))+1
+			local opt=available_list[Duel.SelectOption(sel_player,table.unpack(option_list))+1]
 			if opt==1 then min,max=2,2
 			elseif opt==2 then min,max=3,3
 			elseif opt==3 then min,max=m.crew_breaker_count(rc),m.crew_breaker_count(rc) end
