@@ -2661,9 +2661,7 @@ function Auxiliary.SelfUntapOperation(ram)
 				local c=e:GetHandler()
 				if not c:IsAbleToUntap() or not c:IsFaceup() then return end
 				if ram then
-					local os=require('os')
-					math.randomseed(os.time())
-					local ct=math.random(0,1)
+					local ct=Duel.GetRandomNumber(0,1)
 					if ct==0 then return end
 				end
 				Duel.Untap(c,REASON_EFFECT)
@@ -2790,9 +2788,7 @@ function Auxiliary.SelfDestroyOperation(ram)
 				if Duel.GetAttacker()==c then Duel.Tap(c,REASON_RULE) end --fix creature not being tapped when attacking
 				if not c:IsLocation(DM_LOCATION_BZONE) or not c:IsFaceup() then return end
 				if ram then
-					local os=require('os')
-					math.randomseed(os.time())
-					local ct=math.random(0,1)
+					local ct=Duel.GetRandomNumber(0,1)
 					if ct==0 then return end
 				end
 				Duel.Destroy(c,REASON_EFFECT)
