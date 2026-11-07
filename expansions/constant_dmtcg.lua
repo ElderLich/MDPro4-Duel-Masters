@@ -1,11 +1,12 @@
 --[[
 	constant_dmtcg.lua
 
-	Usage: Put this file in the expansions folder
+	Package path: script/dm/constants.lua
 
-	Include the following code in your script: local DMTCG=require "expansions.constant_dmtcg"
+	Loaded once per duel by dm/utility.lua through Duel.LoadScript.
 ]]
 
+if MDPro4DMConstants then return MDPro4DMConstants end
 local DMTCG={}
 
 --Card ID
@@ -679,4 +680,5 @@ DECK_SEQUENCE_SHUFFLE				=2		--seq=DECK_SEQUENCE_SHUFFLE in Duel.SendtoDeck(targ
 DECK_SEQUENCE_UNEXIST				=-2		--seq=DECK_SEQUENCE_UNEXIST in Duel.SendtoDeck(targets, player, seq, reason)
 --Zone (Location + Sequence)
 ZONE_ANY							=0xff	--zone=ZONE_ANY in Duel.SendtoBZone(targets, sumtype, sumplayer, target_player, nocheck, nolimit, pos, zone)
+MDPro4DMConstants=DMTCG
 return DMTCG

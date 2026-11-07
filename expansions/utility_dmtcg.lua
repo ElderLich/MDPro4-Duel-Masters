@@ -1,13 +1,16 @@
 --[[
 	utility_dmtcg.lua
 
-	Usage: Put this file in the expansions folder
+	Package path: script/dm/utility.lua
 
-	Include the following code in your script: local dm=require "expansions.utility_dmtcg"
+	Load through Duel.LoadScript("dm/utility.lua"); reuse MDPro4DM.
 ]]
 
+-- The package loader caches this table for the lifetime of one duel.
+if MDPro4DM then return MDPro4DM end
+if not MDPro4DMConstants then Duel.LoadScript("dm/constants.lua") end
+assert(MDPro4DMConstants,"Duel Masters constants failed to load")
 local Auxiliary={}
-local DMTCG=require "expansions.constant_dmtcg"
 DM_DESC_FN_BLOCKER=DM_DESC_FIRE_NATURE_BLOCKER
 DM_DESC_NL_SLAYER=DM_DESC_NATURE_LIGHT_SLAYER
 EFFECT_INDESTRUCTIBLE=EFFECT_INDESTRUCTABLE
@@ -17,17 +20,15 @@ EFFECT_INDESTRUCTIBLE_BATTLE=EFFECT_INDESTRUCTABLE_BATTLE
 --get a card script's name and id
 --include in each script: local scard,sid=dm.GetID()
 function Auxiliary.GetID()
-	local str=string.match(debug.getinfo(2,'S')['source'],"c%d+%.lua")
-	str=string.sub(str,1,string.len(str)-4)
-	local scard=_G[str]
-	local sid=tonumber(string.sub(str,2))
+	local scard,sid=GetID()
+	assert(scard and sid,"Duel Masters card identity is unavailable")
 	return scard,sid
 end
 --========== Lua ==========
---Overwritten Lua functions
+--Keep legacy userdata classification private; never replace the host type().
 --get the value type of a variable
 local lua_type=type
-function type(o)
+local function type(o)
 	local m=getmetatable(o)
 	local t=m and m.__type or nil
 	if t then return t
@@ -3851,6 +3852,7 @@ function Auxiliary.PreviousLocationMZoneFilter(c)
 		or (c:IsPreviousLocation(LOCATION_HAND) and c:IsReason(REASON_TEMPORARY))
 end
 Auxiliary.plmzfilt=Auxiliary.PreviousLocationMZoneFilter
+MDPro4DM=Auxiliary
 return Auxiliary
 --[[
 	References
