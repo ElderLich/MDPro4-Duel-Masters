@@ -200,10 +200,10 @@ end
 function scard.position_rule_card(tp)
 	local g=Duel.GetMatchingGroup(Card.IsCode,tp,LOCATION_ALL,0,nil,sid)
 	if g:GetCount()>0 then
-		Duel.MoveToField(g:GetFirst(),tp,tp,LOCATION_SZONE,POS_FACEUP,true)
+		Duel.MoveToField(g:GetFirst(),tp,tp,LOCATION_SZONE,POS_FACEUP,true,0x20)
 	else
 		local rule=Duel.CreateToken(tp,sid)
-		Duel.MoveToField(rule,tp,tp,LOCATION_SZONE,POS_FACEUP,true)
+		Duel.MoveToField(rule,tp,tp,LOCATION_SZONE,POS_FACEUP,true,0x20)
 	end
 end
 function scard.shuffle_deck(tp)

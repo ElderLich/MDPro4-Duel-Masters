@@ -906,6 +906,18 @@ function Duel.DMIsPlayerCanSendDecktoptoGrave(player,count)
 	return g:FilterCount(Card.DMIsAbleToGrave,nil)>0
 end
 ]]
+--Place shields without the card-code hint and selection prompt emitted by an
+--unrestricted MoveToField. Existing shields keep their physical slot identity.
+function Auxiliary.MoveToShieldZone(c)
+	local player=c:GetOwner()
+	for sequence=0,4 do
+		if Duel.CheckLocation(player,DM_LOCATION_SZONE,sequence) then
+			return Duel.MoveToField(c,player,player,DM_LOCATION_SZONE,POS_FACEDOWN,true,1<<sequence)
+		end
+	end
+	Duel.Hint(HINT_MESSAGE,player,DM_DESC_NOSZONES)
+	return false
+end
 --add a card to a player's shields face down
 --Note: Currently disabled check if an evolution source can leave the battle zone
 function Duel.SendtoSZone(targets)
@@ -918,22 +930,14 @@ function Duel.SendtoSZone(targets)
 			for tc2 in aux.Next(g) do
 				if tc2:IsAbleToSZone() then
 					--if tc1:IsCanSourceLeave() then
-						if Duel.GetLocationCount(tc2:GetOwner(),DM_LOCATION_SZONE)>0 then
-							if Duel.MoveToField(tc2,tc2:GetOwner(),tc2:GetOwner(),DM_LOCATION_SZONE,POS_FACEDOWN,true) then
-								ct=ct+1
-							end
-						else
-							Duel.Hint(HINT_MESSAGE,tc2:GetOwner(),DM_DESC_NOSZONES)
+						if Auxiliary.MoveToShieldZone(tc2) then
+							ct=ct+1
 						end
 					--end
 				end
 			end
-			if Duel.GetLocationCount(tc1:GetOwner(),DM_LOCATION_SZONE)>0 then
-				if Duel.MoveToField(tc1,tc1:GetOwner(),tc1:GetOwner(),DM_LOCATION_SZONE,POS_FACEDOWN,true) then
-					ct=ct+1
-				end
-			else
-				Duel.Hint(HINT_MESSAGE,tc1:GetOwner(),DM_DESC_NOSZONES)
+			if Auxiliary.MoveToShieldZone(tc1) then
+				ct=ct+1
 			end
 		end
 	end
