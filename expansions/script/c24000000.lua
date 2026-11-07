@@ -28,8 +28,8 @@ function scard.operation(e,tp,eg,ep,ev,re,r,rp)
 	--shuffle opponent's deck
 	scard.shuffle_deck(1-tp)
 	--check deck size
-	local b1=Duel.GetFieldGroupCount(tp,LOCATION_DECK,0)<40
-	local b2=Duel.GetFieldGroupCount(1-tp,LOCATION_DECK,0)<40
+	local b1=Duel.GetFieldGroupCount(tp,LOCATION_DECK,0)~=40
+	local b2=Duel.GetFieldGroupCount(1-tp,LOCATION_DECK,0)~=40
 	--check for non-duel masters cards
 	local f=function(c)
 		return not c.duel_masters_card
@@ -40,7 +40,7 @@ function scard.operation(e,tp,eg,ep,ev,re,r,rp)
 	if b2 then Duel.Hint(HINT_MESSAGE,1-tp,DM_DECKERROR_DECKCOUNT) end
 	if b3 then Duel.Hint(HINT_MESSAGE,tp,DM_DECKERROR_NONDM) end
 	if b4 then Duel.Hint(HINT_MESSAGE,1-tp,DM_DECKERROR_NONDM) end
-	if (b1 and b2) or (b3 and b4) then
+	if (b1 or b3) and (b2 or b4) then
 		Duel.Win(PLAYER_NONE,DM_WIN_REASON_INVALID)
 		return
 	elseif b1 or b3 then
