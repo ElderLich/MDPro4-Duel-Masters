@@ -2,10 +2,27 @@ import tempfile
 import unittest
 from pathlib import Path
 import zipfile
-from tools.build_package import add_entry, archive_name, collect_entries, deck_eligibility, read_catalog, ROOT, write_package
+from tools.build_package import add_entry, archive_name, collect_entries, deck_eligibility, read_catalog, ROOT, write_package, read_version
 
 
 class PackageTests(unittest.TestCase):
+    def test_versions_and_release_payloads_are_immutable(self):
+        self.assertTrue(read_version(ROOT))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "VERSION").write_text("2.3.4-preview.1", encoding="ascii")
+            self.assertEqual(read_version(root), "2.3.4-preview.1")
+            (root / "VERSION").write_text("01.0.0", encoding="ascii")
+            with self.assertRaises(ValueError):
+                read_version(root)
+            output = root / "pack.ypk"
+            first = write_package({"x": b"one"}, output, immutable=True)
+            self.assertEqual(first, write_package({"x": b"one"}, output, immutable=True))
+            with self.assertRaises(ValueError):
+                write_package({"x": b"two"}, output, immutable=True)
+            with zipfile.ZipFile(output) as archive:
+                self.assertEqual(archive.read("x"), b"one")
+
     def test_traversal_and_case_collisions_rejected(self):
         for name in ("../x", "/x", "C:/x", "a\\b", "a/../b", "a//b"):
             with self.assertRaises(ValueError):
@@ -36,6 +53,8 @@ class PackageTests(unittest.TestCase):
     def test_package_is_deterministic_and_has_no_global_overrides(self):
         entries, receipt = collect_entries(ROOT)
         self.assertEqual(receipt["script_count"], 1017)
+        self.assertEqual(receipt["card_ids"], sorted(read_catalog(ROOT)))
+        self.assertEqual(receipt["version"], read_version(ROOT))
         self.assertNotIn("script/utility.lua", entries)
         self.assertNotIn("script/constant.lua", entries)
         self.assertNotIn("translation.conf", entries)

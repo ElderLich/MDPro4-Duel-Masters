@@ -16,6 +16,14 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 STAMP = (2000, 1, 1, 0, 0, 0)
+
+
+def read_version(root: Path) -> str:
+    version = (root / "VERSION").read_text(encoding="ascii").strip()
+    if not re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:preview|alpha|beta|rc)\.[1-9][0-9]*)?", version):
+        raise ValueError("VERSION must be SemVer, optionally with preview/alpha/beta/rc.N")
+    return version
+
 METADATA = "mdpro4-duel-masters"
 
 
@@ -157,6 +165,8 @@ def collect_entries(root: Path, artwork_manifest: dict | None = None) -> tuple[d
     receipt = {
         "schema_version": 1,
         "name": "MDPro4-Duel Masters",
+        "version": read_version(root),
+        "card_ids": sorted(cards),
         "status": "development-compatibility-package",
         "upstream_commit": "a047df999a2109f52a065fc9760459a0780560b2",
         "card_count": len(cards),
@@ -171,7 +181,7 @@ def collect_entries(root: Path, artwork_manifest: dict | None = None) -> tuple[d
     return entries, receipt
 
 
-def write_package(entries: dict[str, bytes], output: Path) -> str:
+def write_package(entries: dict[str, bytes], output: Path, *, immutable: bool = False) -> str:
     output.parent.mkdir(parents=True, exist_ok=True)
     handle, temporary = tempfile.mkstemp(prefix=output.name + ".", suffix=".tmp", dir=output.parent)
     try:
@@ -187,7 +197,11 @@ def write_package(entries: dict[str, bytes], output: Path) -> str:
             if archive.testzip() is not None:
                 raise ValueError("Archive CRC verification failed")
         result = digest(Path(temporary).read_bytes())
-        os.replace(temporary, output)
+        if immutable and output.exists():
+            if digest(output.read_bytes()) != result:
+                raise ValueError(f"Release payload already exists with different bytes: {output}. Bump VERSION or build a candidate outside Releases.")
+        else:
+            os.replace(temporary, output)
         return result
     finally:
         if os.path.exists(temporary):
@@ -197,15 +211,18 @@ def write_package(entries: dict[str, bytes], output: Path) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=ROOT)
-    parser.add_argument("--output", type=Path, default=ROOT / "dist/MDPro4-Duel-Masters.ypk")
+    parser.add_argument("--output", type=Path, help="Defaults to Releases/v<VERSION>/MDPro4-Duel-Masters-v<VERSION>.ypk")
     parser.add_argument("--artwork-manifest", type=Path)
     parser.add_argument("--host-cdb", type=Path, action="append", default=[])
     args = parser.parse_args()
+    version = read_version(args.repo)
+    if args.output is None:
+        args.output = args.repo / "Releases" / ("v" + version) / ("MDPro4-Duel-Masters-v" + version + ".ypk")
     cards = read_catalog(args.repo)
     check_host_collisions(cards, args.host_cdb)
     artwork = json.loads(args.artwork_manifest.read_text(encoding="utf-8")) if args.artwork_manifest else None
     entries, receipt = collect_entries(args.repo, artwork)
-    sha256 = write_package(entries, args.output)
+    sha256 = write_package(entries, args.output, immutable=args.output.resolve().is_relative_to((args.repo / "Releases").resolve()))
     args.output.with_suffix(".ypk.sha256").write_text(f"{sha256}  {args.output.name}\n", encoding="ascii")
     print(json.dumps({"output": str(args.output), "sha256": sha256, "entries": len(entries), "cards": receipt["card_count"], "artwork": receipt["artwork_count"]}))
 

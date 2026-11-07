@@ -48,3 +48,6 @@ __pycache__/
 /textures/
 /DataEditorX/
 /dataeditor/
+
+# Immutable local payloads are distributed through GitHub Releases
+/Releases/
