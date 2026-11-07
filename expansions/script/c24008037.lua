@@ -1,0 +1,50 @@
+--Furious Onslaught
+local dm=require "expansions.utility_dmtcg"
+local scard,sid=dm.GetID()
+function scard.initial_effect(c)
+	dm.EnableSpellAttribute(c)
+	--get ability
+	dm.AddSpellCastEffect(c,0,nil,scard.regop)
+end
+scard.duel_masters_card=true
+function scard.regop(e,tp,eg,ep,ev,re,r,rp)
+	local c=e:GetHandler()
+	--add race
+	local e1=Effect.CreateEffect(c)
+	e1:SetDescription(aux.Stringid(sid,1))
+	e1:SetType(EFFECT_TYPE_SINGLE)
+	e1:SetCode(DM_EFFECT_ADD_RACE)
+	e1:SetProperty(EFFECT_FLAG_CLIENT_HINT)
+	e1:SetValue(DM_RACE_ARMORED_DRAGON)
+	local e2=Effect.CreateEffect(c)
+	e2:SetType(EFFECT_TYPE_FIELD+EFFECT_TYPE_GRANT)
+	e2:SetTargetRange(DM_LOCATION_BZONE,0)
+	e2:SetTarget(aux.TargetBoolFunction(Card.DMIsRace,DM_RACE_DRAGO_NOID))
+	e2:SetLabelObject(e1)
+	e2:SetReset(RESET_PHASE+PHASE_END)
+	Duel.RegisterEffect(e2,tp)
+	--power up
+	local e3=Effect.CreateEffect(c)
+	e3:SetDescription(aux.Stringid(sid,2))
+	e3:SetType(EFFECT_TYPE_SINGLE)
+	e3:SetCode(DM_EFFECT_UPDATE_POWER)
+	e3:SetProperty(EFFECT_FLAG_CLIENT_HINT)
+	e3:SetValue(4000)
+	local e4=e2:Clone()
+	e4:SetLabelObject(e3)
+	Duel.RegisterEffect(e4,tp)
+	--double breaker
+	local e5=Effect.CreateEffect(c)
+	e5:SetType(EFFECT_TYPE_SINGLE)
+	e5:SetCode(DM_EFFECT_BREAKER)
+	local e6=e5:Clone()
+	e6:SetDescription(aux.Stringid(sid,3))
+	e6:SetCode(DM_EFFECT_DOUBLE_BREAKER)
+	e6:SetProperty(EFFECT_FLAG_CLIENT_HINT)
+	local e7=e2:Clone()
+	e7:SetLabelObject(e5)
+	Duel.RegisterEffect(e7,tp)
+	local e8=e2:Clone()
+	e8:SetLabelObject(e6)
+	Duel.RegisterEffect(e8,tp)
+end
