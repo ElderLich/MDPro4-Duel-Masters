@@ -2240,7 +2240,9 @@ function Auxiliary.ShieldTriggerCondition2(e,tp,eg,ep,ev,re,r,rp)
 	return Auxiliary.ShieldTriggerCondition1(e,tp,eg,ep,ev,re,r,rp) and e:GetLabel()==1 and e:GetHandler():IsBrokenShield()
 end
 function Auxiliary.ShieldTriggerSummonTarget(e,tp,eg,ep,ev,re,r,rp,chk)
-	if chk==0 then return e:GetHandler():DMIsSummonable() end
+	if chk==0 then
+		return Duel.GetLocationCount(tp,DM_LOCATION_BZONE)>0 and e:GetHandler():DMIsSummonable()
+	end
 end
 function Auxiliary.ShieldTriggerSummonOperation(e,tp,eg,ep,ev,re,r,rp)
 	local c=e:GetHandler()
