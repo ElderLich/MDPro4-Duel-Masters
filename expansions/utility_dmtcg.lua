@@ -37,6 +37,16 @@ local function type(o)
 	elseif m==Effect then return "Effect"
 	else return "Card" end
 end
+--Collect evolution sources before mutating the caller's Group. Even merging
+--an empty Group invalidates the native GetFirst/GetNext iterator.
+function Auxiliary.IncludeEvolutionSources(targets)
+	local sources=Group.CreateGroup()
+	for c in aux.Next(targets) do
+		if c:IsCanSourceLeave() then sources:Merge(c:GetSourceGroup()) end
+	end
+	targets:Merge(sources)
+	return targets
+end
 --========== Card ==========
 --Temporary Card functions
 --check if a card's mana cost is equal to a given value
@@ -503,10 +513,7 @@ local duel_send_to_hand=Duel.SendtoHand
 function Duel.SendtoHand(targets,player,reason,use_shield_trigger)
 	--use_shield_trigger: true if player can use the "shield trigger" ability of the returned shield
 	if type(targets)=="Card" then targets=Group.FromCards(targets) end
-	for tc1 in aux.Next(targets) do
-		local g=tc1:GetSourceGroup()
-		if tc1:IsCanSourceLeave() then targets:Merge(g) end
-	end
+	Auxiliary.IncludeEvolutionSources(targets)
 	local ct=duel_send_to_hand(targets,player,reason,use_shield_trigger)
 	for tc2 in aux.Next(targets) do
 		if use_shield_trigger then
@@ -520,10 +527,7 @@ end
 local duel_send_to_deck=Duel.SendtoDeck
 function Duel.SendtoDeck(targets,player,seq,reason)
 	if type(targets)=="Card" then targets=Group.FromCards(targets) end
-	for tc in aux.Next(targets) do
-		local g=tc:GetSourceGroup()
-		if tc:IsCanSourceLeave() then targets:Merge(g) end
-	end
+	Auxiliary.IncludeEvolutionSources(targets)
 	local ct=duel_send_to_deck(targets,player,seq,reason)
 	if seq==DECK_SEQUENCE_TOP or seq==DECK_SEQUENCE_BOTTOM then
 		local dct1=Duel.GetOperatedGroup():FilterCount(Card.IsControler,nil,0)
@@ -876,9 +880,8 @@ end
 function Duel.DMSendtoGrave(targets,reason)
 	if type(targets)=="Card" then targets=Group.FromCards(targets) end
 	local ct=0
+	Auxiliary.IncludeEvolutionSources(targets)
 	for tc in aux.Next(targets) do
-		local g=tc:GetSourceGroup()
-		if tc:IsCanSourceLeave() then targets:Merge(g) end
 		if tc:DMIsAbleToGrave() then
 			if tc:IsLocation(LOCATION_REMOVED) and tc:IsFacedown() then
 				--workaround to banish a banished card
