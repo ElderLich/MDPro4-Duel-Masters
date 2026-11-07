@@ -1,212 +1,217 @@
 # MDPro4 integration contract
 
-Source inspection: 7 November 2026. Host checkout:
-`D:/Programs/GitHub/MDPro_3`. These findings distinguish package loading,
-core execution, and rendered gameplay; a valid YPK proves only its own scope.
-Host modifications and connected-Editor acceptance, if any, are recorded separately by the integration owner.
+Implementation reviewed on 7 November 2026 for `v0.2.0-preview.1`, using host
+checkout `D:/Programs/GitHub/MDPro_3`, branch `Duel-Masters` at `e84c3009c`.
+That host branch has not been pushed. The YPK contains cards, scripts, prompts,
+decks and scans. The accompanying rendering and shield interface are local host
+changes; this package does not distribute a compiled MDPro4 client update.
 
-## Package layout and lookup
+Package validation, native gameplay, Unity runtime assertions, actual replay
+playback and physical input are separate acceptance scopes. See
+[acceptance.md](acceptance.md) for their current results.
 
-A normal `.ypk` is a ZIP file placed in the host's `Expansions/` directory,
-with expansions enabled. The ZIP contains runtime paths directly, without an
-outer repository or `expansions/` directory:
+## Package identity and lookup
 
-| Content | Archive path | Host owner |
+A normal `.ypk` is a ZIP placed in `Expansions/`, with expansions enabled. Its
+runtime paths live directly at the archive root, without an outer repository or
+`expansions/` directory.
+
+| Content | Archive path | Owner |
 | --- | --- | --- |
-| Card scripts | `script/c<id>.lua` | `PercyOCG.ScriptHandler` / core reader |
-| DM helper scripts | `script/dm/utility.lua`, `script/dm/constants.lua` | The guarded DM bootstrap |
-| Card databases | Unique `*.cdb` basenames | `CardsManager.LoadDatabase` and temporary extraction |
-| Full printed card scans | `pics/<id>.jpg` | `ResourceManager.GetCardImageAsync` |
-| Isolated illustrations | `art/<id>.jpg`, `art2/<id>.png` | `ResourceManager.GetCardIllustAsync` |
+| Card scripts | `script/c<id>.lua` | `PercyOCG.ScriptHandler` / native reader |
+| DM helpers | `script/dm/utility.lua`, `script/dm/constants.lua` | Guarded per-duel bootstrap |
+| Card databases | `cards-dm.cdb`, `cards-dm-alias.cdb`, `cards-dm-go.cdb` | `CardsManager` / temporary extraction |
+| Full printed scans | `pics/<id>.jpg` | `ResourceManager` / `CardImageLoader` |
+| Isolated illustrations, when reviewed | `art/<id>.jpg`, `art2/<id>.png` | Existing artwork loader |
 | DM descriptions | Uniquely named `*.conf` | `StringHelper.AddExpansionStrings` |
+| Card membership and hashes | `mdpro4-duel-masters/manifest.json` | `DuelMastersCardCatalog` |
+| Starter decks | `deck/*.ydk` | Manually copied to the host `Deck/` folder |
 
-Relevant host sources are `Assets/Scripts/MDPro4/Core/Data/FileGroupConfig.cs`,
-`Core/IO/ResourceManager.cs`, `Core/IO/FileManager.cs`, `Core/IO/ZipManager.cs`,
-`Duel/YGOSharp/CardsManager.cs`, and `Duel/PercyOCG.cs`, relative to that checkout.
+`DuelMastersCardCatalog` reads schema version 1 and explicit `card_ids` after
+the host publishes its new ZIP index. It checks the package name, unique
+positive IDs and the rules card `24000000`. The manifest, all three CDBs, rules
+script and both helpers must originate from the same mounted archive. A loose
+JSON file or an arbitrary card-ID range cannot activate DM presentation.
+Catalog reset/reload changes a revision used by the image cache.
 
-Loose files win over archive entries. Archive paths are indexed without case
-sensitivity, and the first archive providing a path wins; filesystem enumeration
-is not a portable override policy. This package therefore owns a distinct DM
-helper namespace and distinct CDB basenames. Do not bundle replacements for the
-host's `script/constant.lua`, `script/utility.lua`, or `script/procedure.lua`.
-A source check found no ID collision between the 1,021 imported DM IDs and the
-checked-out `Data/locales/en-US/cards.cdb`; that is a snapshot, not a guarantee
-about future databases or other installed packs.
+Loose files normally take priority over archive entries; the first archive
+providing a path wins. Keep only one active version of the DM pack. Its helper
+namespace and CDB basenames are distinct. CDB extraction is flat, so different
+archive subdirectories do not protect duplicate basenames. Never package global
+replacements for `script/constant.lua`, `script/utility.lua` or
+`script/procedure.lua`.
 
-CDB readers extract to a flat temporary directory, so distinct archive folders
-cannot protect duplicate CDB basenames. SQLite source inspection opens read-only
-connections and closes each connection explicitly. The tooling never edits the
-original artwork or source databases during inventory.
+Source databases are inspected through read-only SQLite connections. Card-ID
+collision checks passed against the inspected English standard, Rush and Edison
+catalogs; run them again for changed host databases or additional packs.
 
 ## Lua and authoritative state
 
-The deployed Windows core capability probe reported `Duel.LoadScript`,
-`Duel.GetRandomNumber`, and `GetID`; `require` and `debug` were absent. The sibling
-`ygopro-core` source lacks some of those APIs and is not sufficient evidence for
-the deployed DLL. Use the actual binary smoke receipt when claiming compatibility.
-The migrated DM bootstrap loads uniquely named helper scripts through the core's
-script reader instead of Lua filesystem module loading.
+The deployed Windows core exposes `Duel.LoadScript`, `Duel.GetRandomNumber` and
+`GetID`; its Lua sandbox has no `require` or `debug`. An older sibling core source
+checkout is insufficient evidence for that binary. The DM bootstrap loads its
+namespaced helpers through the native script reader and initializes once per
+duel, without replacing Lua's global `type()`.
 
-The legacy mod encodes battle creatures as monster-zone cards, shields as
-spell/trap-zone cards, untapped mana as graveyard cards, and tapped mana and the
-DM graveyard through banished-card state. These are adaptations of the YGO core,
-not native Duel Masters zones. The existing five shield / six creature limits,
-concealed tapped mana, response pauses, attack tapping, and replay behavior need
-explicit gameplay acceptance; do not infer them from database or script loading.
-No host message parser, movement format, shared-state owner, or replay policy was
-changed here.
+The adapter uses monster-zone cards for battle creatures, S/T slots 0–4 for
+shields, graveyard cards for untapped mana, and position-dependent banished
+cards for tapped mana and the DM graveyard. These are explicit core encodings;
+a different label or an extra drawn slot cannot create a new native zone.
+There are five actual shield slots. Native QA exercised five simultaneously
+occupied creature slots and the resulting no-space summon condition. It does
+not establish unrestricted creature capacity, correct attack-time tapping or
+modern extra-zone mechanics. Full-field evolution through effects/Shield
+Trigger remains an inherited limitation: the effect-summon wrapper requires
+space before raising the event that consumes an evolution base. The new
+trigger guard prevents an unavailable summon from repeatedly being offered;
+it does not implement that base-consumption path. Q-tronic's printed trigger
+and Wolfis's separate direct granted-trigger path are documented in
+[full-duel QA](full-duel-qa.md).
 
-For a bounded real-core fixture, follow the callback ABI and packed card fields
-in `Tools/MasterDuel/tests/summon_history/ocg_fixture.py`. Feed the actual generated
-YPK through script/card callbacks and the host's normal base script archive;
-capture all Lua diagnostics. Exercise setup, responses, and state queries, then
-retire the duel and release callback buffers. A generated-and-reloaded replay is
-a separate required proof for any future replay-state change.
+The rules support card occupies face-up S/T slot 5 and remains in authoritative
+state. `DuelMastersSession` activates presentation only when the installed
+catalog and that public card agree; the host suppresses its physical field
+model. Card membership does not depend on hidden shield identity.
 
-## Artwork mapping and display limitations
+`Duel.SendtoSZone` supplies legal physical placement masks, so shield setup is
+automatic and existing shields keep their slots. No global auto-placement
+setting is changed. `Duel.BreakShield` remains the producer of a break choice.
+The local host consumes its real offered cards and response indexes.
 
-The supplied collection is `G:/Modding/Duel Masters/DM Sets`. Inventory found
-3,413 supported images and seven unrelated `Thumbs.db` files. There are 253
-numeric filename stems, but only 124 match imported card IDs. All 124 matches
-come from `DM-01`; 897 imported IDs have no approved mapping. The remaining
-numeric filenames use a different ID scheme (for example `10013001`), and most
-other filenames are UUIDs. Directory order, guessed prefix substitution, and
-fuzzy name similarity are not identity evidence.
+`tools/full_duel_qa.py` runs ordinary offers/responses to actual wins, saves
+standard YRP1 files and replays their disk-loaded responses through a fresh
+native duel. It retains callback buffers through `end_duel`, fails on unknown
+packet boundaries and records Lua diagnostics. A complete native replay match
+does not establish host presentation or network redaction.
+[Replay ABI and full-duel cases →](full-duel-qa.md)
 
-The inspected `DM-01/24001001.jpg` is a complete printed Duel Masters card,
-including frame, rules, collector number and illustrator credit. The initial
-packaging classification is therefore `full_card`; original JPG bytes belong
-in `pics/`. The tool requires this classification explicitly, and reviewed
-per-card mappings can identify future isolated `artwork` inputs.
+## Shield visibility and selection
 
-`tools/artwork.py` accepts only an exact numeric card ID or an exact uniquely
-normalized card name (Unicode NFKC, case folding, collapsed whitespace;
-punctuation is retained). Multiple images for an ID or a repeated card name
-remain ambiguous. Reviewed mappings in `config/artwork-map.json` must contain
-`card_id`, relative `source`, the expected `sha256`, and `image_kind`.
-A changed source hash or a path outside the source directory fails validation.
-Explicitly selected sources are not reused by automatic matching.
+`DuelMastersSession` identifies shields by public session and physical S/T slot,
+not by card code. Face-down shields belonging to either player are concealed
+through ordinary previews, details, sidebar, card lists and selection popups,
+including normal/free replay. A face-up shield is public. Stable labels show
+`Shield 1` through `Shield 5`; creature labels use DM power rather than YGO
+level/DEF/race overlays.
 
-The generated manifest records source path, source SHA-256, card ID, image kind,
-archive path, and required encoding for every accepted mapping. PNG/WebP scans
-require actual JPEG encoding because the host's `pics/` group only accepts JPG;
-renaming bytes is insufficient. PNG isolated artwork can remain byte-identical
-under `art2/`. The inventory performs no crop, resize, image generation, or
-in-place source rewrite.
+`GameMessage_SelectCard` and `GameMessage_SelectUnselectCard` do not install
+hidden shield IDs from their offer payloads. Field selections toggle the
+offered physical cards. Reaching the maximum does not submit automatically:
+the player can review the selection and confirm once. The response uses each
+card's offered `selectPtr`, not its physical sequence. For example, offered
+shields in physical slots 1–4 still use response indexes 0–3. Selected shield
+numbers remain bold cyan, then clear on deselection, movement and response
+retirement. The actual handler fixture selected physical slots 2 and 3 and
+serialized `020102`, with one response despite repeated confirmation.
 
-Current MDPro4 `Utility/CardImageLoader.cs` crops `pics/` using Yu-Gi-Oh! geometry
-and composes a Yu-Gi-Oh! frame. It has special Rush/Pendulum paths, but no Duel
-Masters frame/crop owner was found. Consequently this initial standard YPK
-retains the complete source scans but does not establish faithful DM rendering.
-A future DM presentation path should use explicit card-family identity and the
-existing texture cache; it must not reinterpret every expansion image as DM.
+The duel HUD reads the authoritative shield slots and displays the remaining
+count in place of compatibility LP. Committed movement, replay reload/reset
+and LP events update the presentation; no per-frame polling is needed. The
+native LP label is hidden/restored per view, and the compatibility value does
+not cause a low-life warning. This changes presentation only, preserving core
+LP/damage/winner state. Normal YGO HUD behavior returns when DM mode ends.
 
-## Resource lifetimes
+Only an actual `ConfirmCards` event permits a temporary private shield reveal.
+The current native packet contains recipient, `skip_panel`, count and card
+entries; the older transport parser is not an ABI reference. The permitted
+local recipient can see the exact confirmed cards. Opponent-private reveals
+require explicit replay God View; spectator mode does not show them.
+Reveal leases track card identity revision, movement generation, controller and
+slot, and are removed on disposal or session reset. Other shields remain hidden.
 
-`ZipManager` owns open archive objects, guards each extraction with its archive
-lock, cancels its generation on disposal, and drains readers before disposal.
-Do not unload a shared archive to work around one missing DM image.
-`ResourceManager` creates a fresh decoded texture and transfers ownership to
-`CardImageLoader`. The cache grants reference-counted leases; views borrow the
-texture and balance `ReleaseArt` / `ReleaseCard`. Cropping destroys the temporary
-scan after creating the cropped texture. Material and cache ownership remain
-with the host; the YPK imports no Unity asset bundles, GUIDs, or prefabs.
-Relevant precedent includes host commits `67303252d` (archive reader retirement)
-and `a780c73f1` (portable artwork and archive priority).
+These are host presentation protections. Multiplayer secrecy and deployed
+server filtering have not been validated. The existing Lua random-selection
+workaround for choosing one's own hidden shields remains for compatibility;
+removing it requires a negotiated client/core contract and end-to-end tests.
 
-## Strings and menus
+## Full printed cards and artwork identity
 
-Legacy `strings.conf` contains replacements for shared low-numbered system
-strings, including phases and zone names. MDPro4 loads its own locale strings
-first and retains the first matching region/ID, so those old replacements are
-not isolated per-duel localization. The fork now distributes `expansions/mdpro4-dm-strings.conf`: 50 DM-specific
-system descriptions use `8000 + legacy ID` (8002 through 9803). Corresponding
-`DM_DESC_*`, `DM_DECKERROR_*`, `DM_HINTMSG_*`, and `DM_QHINTMSG_*` literals were
-migrated together; existing `aux.Stringid` card descriptions were retained.
-`DuelMessage.GameMessage_Hint` reads a 32-bit description and calls
-`StringHelper.Get(int)`. That function treats values below 10000 as system IDs
-and larger values as `card ID << 4 | string index`; an arbitrary large system
-namespace would display the wrong text. The selected 50 IDs had no collision
-in the inspected host's loose `Data` / `Expansions` configurations. Other
-third-party packs still need their own compatibility check.
+The supplied `G:/Modding/Duel Masters/DM Sets` collection contains 3,413 supported
+images. Only 124 approved images map to imported card IDs, all from DM-01;
+897 database IDs remain unmapped. Other numeric schemes and UUID filenames are
+not card identity evidence. No approved DM back was identified, so the existing
+selected protector is preserved.
 
-The dedicated configuration includes victory reasons `0x4d` through `0x4f`
-only. Victory reasons are one byte on the wire and are read through the separate
-`victory` region. It does not replace standard outcomes 0 or 1. The missing
-upstream `DM_DESC_BLOCKED` string was recovered from its existing constant
-comment. Whole-client terminology still needs a separate host mode.
-`InterString` reads `Data/locales/<locale>/translation.conf`, not an arbitrary
-translation file in a YPK. The old `expansions/translation.conf` is preserved as
-upstream source, not evidence of working MDPro4 translation. Any future host
-string edits must follow its complete catalog/companion synchronization policy.
+The accepted images are complete printed cards, including their frames, text
+and credits. They belong in `pics/`, with original JPEG bytes retained.
+`tools/artwork.py` accepts exact card IDs or exact uniquely normalized names
+(NFKC, case folding and collapsed whitespace). Reviewed overrides pin
+`card_id`, relative `source`, expected `sha256` and `image_kind`. Ambiguity,
+changed hashes and paths outside the source directory fail validation.
+PNG/WebP full scans require genuine JPEG encoding, not a renamed extension.
+Inventory does not crop, resize or overwrite source art.
 
-## Validation recorded here
+For explicit catalog members, `CardImageLoader` loads the printed scan before
+the YGO illustration/frame composition path. Thumbnail sizing preserves the
+whole face. `MaterialLoader`, `CardRawImageHandler`, `CardRenderer`,
+`FramePalette` and `GoRushFinish` avoid incompatible native YGO frame, foil,
+overlay and video paths for these scans. Missing scans use the existing
+owned fallback; an image is never guessed from another card.
 
-The artwork regression suite covers exact identity, ambiguity, explicit review,
-changed source hashes, path escape rejection, encoding/kind separation,
-determinism, and non-reuse of reviewed sources. The real collection inventory
-matches the counts above. Connected Unity rendering, complete rules behavior,
-multiplayer, other platform DLLs, and replay playback remain separate acceptance
-scopes; consult the root task's runtime receipt for checks actually performed.
+`DuelMastersCardFit` fits UI image vertices while retaining layout/hit bounds
+and restores normal rendering when the view is reused. `DuelMastersCardModelFit`
+adjusts existing front/back/edge surfaces for the public DM session, including
+unknown shields. It leaves animation roots, colliders, labels and effects in
+their current owners. Hidden identity does not decide a card's physical shape.
+Special-effect copies with separate geometry remain outside this bounded
+primary-view acceptance.
 
-## Concrete usability work and ownership
+## Card facts and rules text
 
-The following is the bounded adaptation plan, not a claim that a ZIP alone
-changes the host's rules or interface:
+`DuelMastersCardFacts` is the shared adapter used by `CardDescription` and
+`CardInfoDetail`. It displays Creature, Evolution Creature or Spell, mapped
+civilizations, actual races, current mana cost and creature power. Sixty-three
+exact `DM_RACE_*` / `DM_SELECT_RACE_*` bindings resolve the package's CDB text
+slots; each 16-bit race chunk is decoded explicitly. Unknown chunks are
+omitted without falling back to a YGO archetype name. Race label language
+follows the loaded package CDB.
 
-1. **Start with a valid playable deck.** The 18 dated set-list YDK files are
-   collection catalogs, with 16–60 main cards and no rule card. They are not
-   starter decks. Seventeen named starter/theme lists have 41 main entries,
-   including the rule card `24000000`, leaving 40 playable cards.
-   `DM TCG5 Deadly Decay.ydk` also has 41 entries; its trailing whitespace must
-   be stripped when parsing card IDs. The room must allow four copies and accept
-   the rule card. Current
-   `OnlineRoomCommands.RoomSettings.NoDeckCheck` owns the YGO deck-check bypass;
-   the DM rule script remains responsible for actual 40-card validation. A
-   later dedicated DM mode should insert the rule card internally and present
-   a 40-card count, rather than asking players to understand a 41st support card.
-2. **Place hidden shields without a prompt.** `Duel.SendtoSZone` is the Lua
-   producer. `DuelMessage.GameMessage_SelectPlace` otherwise uses the latest
-   `HINT_SELECTMSG` as a card code and constructs a card-name prompt before
-   waiting for player input. Resolve automatic shield placement at the Lua
-   producer with an explicit legal S/T-zone mask; do not toggle a player's
-   global auto-position preference or hide an already-leaked name later in UI.
-   Existing shield-breaking choice is separate: `Duel.BreakShield` emits
-   `DM_HINTMSG_BREAK` and selects physical shield cards. Keep this choice;
-   `GameMessage_SelectCard` / `PlaceSelector` already own field highlighting
-   and response indexes. Back faces must remain back faces until the core
-   authoritatively reveals or moves that exact card.
-3. **Use DM words for DM choices.** The reserved prompt namespace implements
-   mana, tapping, shields, creature selection, deck errors, and optional charge
-   wording without overriding normal YGO system messages. A later session mode
-   can rename S/T to Shields, Graveyard to Untapped Mana, and the two semantically
-   different banished groups to Tapped Mana / Graveyard. That cannot be a global
-   location-name replacement: both latter groups share `LOCATION_REMOVED`.
-   Derive the distinction from authoritative position/flags used by this Lua
-   implementation; maintain exact card identity across `GameMessage_Move` and
-   query updates. Never infer hidden identity from the player-visible label.
-4. **Keep the printed Duel Masters card.** There is no existing package flag or
-   original-picture style: `CardRenderer.CardStyle` contains OCG/TCG, Rush,
-   Anime, Sevens Anime, and Manga. The narrow host hook is
-   `CardImageLoader.InternalLoadCardAsync`, before `LoadArtAsync` and frame
-   composition. For explicit package-declared DM card membership, it can load
-   `ResourceManager.GetCardImageAsync(code)` and transfer that fresh texture to
-   the existing `cachedCards` owner. Apply bounded thumbnail sizing only when
-   requested, keep source scans intact, and retain normal missing-image
-   diagnostics. Do not make every card in a broad numeric range use this path.
-   Check `CardRawImageHandler.TryGetMasterDuelRenderInfo` and `MaterialLoader`
-   too: a native renderer or foil material must not reframe or mask a full DM
-   scan. No current `.ini` setting provides this behavior; expansion `.ini`
-   texts are consumed by the legacy online page.
-5. **Remove adaptation limits only with core evidence.** A larger graphical
-   shield row does not remove the five physical S/T slots. Unlimited battle and
-   shield zones require an authoritative representation, compatible selection
-   responses, move/query semantics, and replay storage. Keep this initial
-   YGO-core adapter's limits explicit until that end-to-end work is accepted.
+The sidebar and full reader hide YGO stars, ATK/DEF, attribute and format
+chrome for DM cards, use the package's raw rules description, and restore
+normal controls when a standard card reuses the view. This avoids false
+archetype/series annotations while retaining the printed scan unchanged.
 
-Acceptance for these steps should cover both players, five unrevealed starting
-shields with no name-bearing placement pause, charging and tapping mana, a
-breaker selecting shields, a real Shield Trigger offer/response, full-scan
-rendering at deck and duel sizes, cancellation/reload cleanup, and a saved replay
-reloaded to the same public state. A scripted callback assertion does not replace
-connected-Editor inspection or actual controller/mouse input evidence.
+## Resource ownership
+
+`ZipManager` owns archives, locks extraction and retires readers before disposal.
+`ResourceManager` returns a fresh decoded texture to `CardImageLoader`; the
+existing cache then owns it and views balance their `ReleaseArt`/`ReleaseCard`
+leases. The DM path transfers decoded scans into that same ownership model,
+destroys owned temporary textures on cancellation and uses plain material clones
+through existing material ownership. It does not unload a shared archive to
+handle a missing image. The YPK supplies no Unity prefab or asset bundle.
+
+Relevant host owners are under `Assets/Scripts/MDPro4/`: `Core/IO/FileManager.cs`,
+`ZipManager.cs`, `ResourceManager.cs`, `Duel/DuelMastersCardCatalog.cs`,
+`Duel/DuelMastersSession.cs`, `Duel/GameCard.cs`, `Duel/Message/DuelMessage.cs`,
+`Utility/CardImageLoader.cs` and the existing view/material components.
+
+## Prompts, decks and remaining work
+
+The package supplies 50 isolated DM system descriptions in the range 8002–9803.
+Corresponding `DM_DESC_*`, `DM_DECKERROR_*`, `DM_HINTMSG_*` and `DM_QHINTMSG_*`
+constants use those IDs. Card descriptions still use `aux.Stringid`:
+`StringHelper.Get` treats values below 10000 as system IDs and larger values as
+`card ID << 4 | string index`. Victory reasons `0x4d`–`0x4f` use the separate
+one-byte victory region; ordinary outcomes 0 and 1 are not replaced.
+
+Global YGO locale replacements are not installed. Host translations belong to
+the normal complete locale catalog and companion-data synchronization policy.
+The two meanings of `LOCATION_REMOVED` cannot be renamed through one global
+zone string. A dedicated DM room/deck flow and complete zone terminology remain
+future work. Players currently copy a packaged starter and supply forty DM
+cards plus the engine-only rules card, using the host deck-check bypass for
+private compatibility testing.
+
+Verified host checks comprise 12 rendering/resource, 26 shield-privacy,
+13 card-facts, 10 HUD/restoration and 28 field-selection handler assertions.
+Sidebar/full-reader screenshots and return to standard-card presentation
+were inspected. All five saved replays also completed through the actual
+Unity player, including two Free View cases, result confirmation and exit.
+Hidden-shield observations and movement-driven counter checks passed; views
+closed, settings were restored and the final Console had no warnings or
+errors. See [acceptance.md](acceptance.md). A handler check using real
+callbacks is distinct from physical mouse/gamepad input and from live native
+flow. Replay seeking was not certified.
+Unlimited zones, full card/rules coverage, multiplayer redaction, non-Windows
+cores and the remaining artwork mappings are not certified by this preview.
